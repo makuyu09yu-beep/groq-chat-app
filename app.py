@@ -5,8 +5,8 @@ from tavily import TavilyClient
 # --------------------------------------------------
 # 1. APIキーの設定（ご自身のキーに書き換えてください）
 # --------------------------------------------------
-GROQ_API_KEY = "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"
-TAVILY_API_KEY = "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"
+GROQ_API_KEY = st.secrets["GROQ_API_KEY"]
+TAVILY_API_KEY = st.secrets["TAVILY_API_KEY"]
 
 client = Groq(api_key=GROQ_API_KEY)
 tavily = TavilyClient(api_key=TAVILY_API_KEY)
