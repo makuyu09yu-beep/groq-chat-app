@@ -14,7 +14,7 @@ tavily = TavilyClient(api_key=TAVILY_API_KEY)
 # --------------------------------------------------
 # 2. 画面の初期化
 # --------------------------------------------------
-st.title("🌐 リアルタイムWeb検索付き Groq AI")
+st.title("Groq AI WEB対応版")
 
 # チャット履歴の保持
 if "messages" not in st.session_state:
