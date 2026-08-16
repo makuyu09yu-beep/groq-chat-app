@@ -70,7 +70,7 @@ if prompt := st.chat_input("最新の価格やニュースなど、何でも質�
 
         # Groq API呼び出し（最新の推奨モデルを使用）
         completion = client.chat.completions.create(
-            model="deepseek-r1-distill-llama-70b",
+            model="qwen-2.5-32b",
             messages=messages_to_send,
         )
 
