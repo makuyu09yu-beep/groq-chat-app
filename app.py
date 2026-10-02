@@ -62,34 +62,32 @@ if prompt := st.chat_input("最新の価格やニュースなど、何でも質�
 """
 
     # 検索結果と指示をユーザーの質問文と合体させる（エラー防止の安全な書き方）
-        final_user_prompt = "以下の[Web検索結果]を参照して、質問に日本語で分かりやすく回答してください。\n\n[Web検索結果]:\n" + str(search_context) + "\n\n[質問]:\n" + str(prompt)
+   # 🚨 追加対策: Web検索結果が長すぎてエラーになるのを防ぐため、2000文字でカットする
+        safe_search = str(search_context)[:2000] if search_context else ""
+        
+        final_user_prompt = "以下の[Web検索結果]を参照して、質問に日本語で分かりやすく回答してください。\n\n[Web検索結果]:\n" + safe_search + "\n\n[質問]:\n" + str(prompt)
 
-        # 🚨 400エラーの最終原因「バグった履歴」を完全修復するフィルター
+        # バグった履歴を完全修復するフィルター
         safe_history = []
         for m in st.session_state.messages[:-1]:
-            # ルール1: 最初は必ず人間(user)から始まること
             if len(safe_history) == 0 and m["role"] != "user":
                 continue
-            # ルール2: 人間(user)とAI(assistant)が連続したら無視して交互に整える
             if len(safe_history) > 0 and safe_history[-1]["role"] == m["role"]:
                 continue
             safe_history.append({"role": m["role"], "content": m["content"]})
             
-        # ルール3: 最後に今回の質問(user)を追加するため、履歴の最後がuserなら削る（交互ルール厳守）
         if len(safe_history) > 0 and safe_history[-1]["role"] == "user":
             safe_history.pop()
 
-        # 完璧に整頓された履歴 ＋ 今回の質問
         messages_to_send = safe_history + [{"role": "user", "content": final_user_prompt}]
 
-        # --- 現在利用可能なモデルをGroqから自動取得 ---
         available_models = [m.id for m in client.models.list().data]
         text_models = [m for m in available_models if "whisper" not in m.lower()]
         
         candidate_models = [
             "llama-3.3-70b-versatile",
             "mixtral-8x7b-32768",
-            "gemma2-9b-it",
+            "qwen-2.5-32b",
             "deepseek-r1-distill-llama-70b"
         ]
         
@@ -98,11 +96,15 @@ if prompt := st.chat_input("最新の価格やニュースなど、何でも質�
         with st.expander("ℹ️ 使用中のAIモデル情報"):
             st.write(f"選択されたモデル: `{selected_model}`")
 
-        # Groq API呼び出し
-        completion = client.chat.completions.create(
-            model=selected_model,
-            messages=messages_to_send,
-        )
+        # 🚨 エラーの「本当の理由」を画面に表示するためのブロック
+        try:
+            completion = client.chat.completions.create(
+                model=selected_model,
+                messages=messages_to_send,
+            )
+        except Exception as e:
+            st.error(f"🚨 Groqエラーの本当の原因: {e}")
+            st.stop()
         
         response_text = completion.choices[0].message.content
         st.markdown(response_text)
