@@ -62,26 +62,25 @@ if prompt := st.chat_input("最新の価格やニュースなど、何でも質�
 """
 
     # 検索結果と指示をユーザーの質問文と合体させる（エラー防止の安全な書き方）
- # 🚨 文字数オーバー対策①: 今回の検索結果を1500文字で安全にカット
-        safe_search = str(search_context)[:1500] if search_context else ""
+# 🚨 パンク対策①: 検索結果をさらに安全な1000文字に制限
+        safe_search = str(search_context)[:1000] if search_context else ""
         
         final_user_prompt = "以下の[Web検索結果]を参照して、質問に日本語で分かりやすく回答してください。\n\n[Web検索結果]:\n" + safe_search + "\n\n[質問]:\n" + str(prompt)
 
-        # 🚨 文字数オーバー対策②: 過去の履歴が雪だるま式に増えるのを防ぐ最強フィルター
+        # 🚨 パンク対策②: 過去の履歴を直近2件（1往復）に極限まで絞る
         safe_history = []
-        # 全履歴を送るのをやめ、直近4件（2往復分）だけを取り出す
-        recent_messages = st.session_state.messages[:-1][-4:]
+        recent_messages = st.session_state.messages[:-1][-2:]
         
         for m in recent_messages:
             if len(safe_history) == 0 and m["role"] != "user":
                 continue
             if len(safe_history) > 0 and safe_history[-1]["role"] == m["role"]:
                 continue
-                
-            # 過去の会話に混ざっている古い検索結果を500文字でバッサリ切る（記憶容量の節約）
+            
+            # 過去の会話データも思い切って200文字でカット
             safe_content = str(m["content"])
-            if len(safe_content) > 500:
-                safe_content = safe_content[:500] + "\n...(以前の検索結果は省略)..."
+            if len(safe_content) > 200:
+                safe_content = safe_content[:200] + "..."
                 
             safe_history.append({"role": m["role"], "content": safe_content})
             
@@ -99,6 +98,22 @@ if prompt := st.chat_input("最新の価格やニュースなど、何でも質�
             "qwen-2.5-32b",
             "deepseek-r1-distill-llama-70b"
         ]
+        
+        selected_model = next((m for m in candidate_models if m in text_models), text_models[0] if text_models else available_models[0])
+        
+        with st.expander("ℹ️ 使用中のAIモデル情報"):
+            st.write("選択されたモデル: " + str(selected_model))
+
+        try:
+            # 🚨 解決の決め手: AIの回答用メモリを1024トークンに制限して、自滅パンクを物理的に防ぐ
+            completion = client.chat.completions.create(
+                model=selected_model,
+                messages=messages_to_send,
+                max_tokens=1024,
+            )
+        except Exception as e:
+            st.error("🚨 Groqエラー: " + str(e))
+            st.stop()
         
         selected_model = next((m for m in candidate_models if m in text_models), text_models[0] if text_models else available_models[0])
         
