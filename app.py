@@ -90,7 +90,8 @@ if prompt := st.chat_input("最新の価格やニュースなど、何でも質�
         messages_to_send = safe_history + [{"role": "user", "content": final_user_prompt}]
 
         available_models = [m.id for m in client.models.list().data]
-        text_models = [m for m in available_models if "whisper" not in m.lower()]
+        # whisper（音声）とcanopylabs（規約同意が必要な特殊モデル）を候補から除外
+        text_models = [m for m in available_models if "whisper" not in m.lower() and "canopy" not in m.lower()]
         
         candidate_models = [
             "llama-3.3-70b-versatile",
