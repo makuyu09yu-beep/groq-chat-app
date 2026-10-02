@@ -64,32 +64,37 @@ if prompt := st.chat_input("最新の価格やニュースなど、何でも質�
     # 検索結果と指示をユーザーの質問文と合体させる
         final_user_prompt = f"""以下の【Web検索結果】を参照して、質問に日本語で分かりやすく回答してください。
 
+# 検索結果と指示をユーザーの質問文と合体させる
+        final_user_prompt = f"""以下の【Web検索結果】を参照して、質問に日本語で分かりやすく回答してください。
+
 【Web検索結果】:
 {search_context}
 
 【質問】:
 {prompt}"""
 
-        # 過去履歴を取得（直前の質問以外）
-        raw_history = [
-            {"role": m["role"], "content": m["content"]}
-            for m in st.session_state.messages[:-1]
-        ]
-        
-        # 🚨 400エラー対策①: 会話の最初が「assistant」だとエラーになるため、先頭のassistantの挨拶を除外する
-        while len(raw_history) > 0 and raw_history[0]["role"] == "assistant":
-            raw_history.pop(0)
+        # 🚨 400エラーの最終原因「バグった履歴」を完全修復するフィルター
+        safe_history = []
+        for m in st.session_state.messages[:-1]:
+            # ルール1: 最初は必ず人間(user)から始まること
+            if len(safe_history) == 0 and m["role"] != "user":
+                continue
+            # ルール2: 人間(user)とAI(assistant)が連続したら無視して交互に整える
+            if len(safe_history) > 0 and safe_history[-1]["role"] == m["role"]:
+                continue
+            safe_history.append({"role": m["role"], "content": m["content"]})
+            
+        # ルール3: 最後に今回の質問(user)を追加するため、履歴の最後がuserなら削る（交互ルール厳守）
+        if len(safe_history) > 0 and safe_history[-1]["role"] == "user":
+            safe_history.pop()
 
-        # 送信用メッセージリストを組み立て
-        messages_to_send = raw_history + [{"role": "user", "content": final_user_prompt}]
+        # 完璧に整頓された履歴 ＋ 今回の質問
+        messages_to_send = safe_history + [{"role": "user", "content": final_user_prompt}]
 
         # --- 現在利用可能なモデルをGroqから自動取得 ---
         available_models = [m.id for m in client.models.list().data]
-        
-        # 🚨 400エラー対策②: 音声モデル(whisper)を除外し、チャット用モデルだけを抽出
         text_models = [m for m in available_models if "whisper" not in m.lower()]
         
-        # 優先順位リスト（Groqで昔からずっと安定している「mixtral」を追加）
         candidate_models = [
             "llama-3.3-70b-versatile",
             "mixtral-8x7b-32768",
@@ -97,10 +102,8 @@ if prompt := st.chat_input("最新の価格やニュースなど、何でも質�
             "deepseek-r1-distill-llama-70b"
         ]
         
-        # 候補に合致するものを探す（無ければテキストモデルの1番目を強制選択）
         selected_model = next((m for m in candidate_models if m in text_models), text_models[0] if text_models else available_models[0])
         
-        # どのモデルが選ばれたか画面に表示
         with st.expander("ℹ️ 使用中のAIモデル情報"):
             st.write(f"選択されたモデル: `{selected_model}`")
 
@@ -109,7 +112,7 @@ if prompt := st.chat_input("最新の価格やニュースなど、何でも質�
             model=selected_model,
             messages=messages_to_send,
         )
-
+        
         response_text = completion.choices[0].message.content
         st.markdown(response_text)
 
