@@ -61,7 +61,7 @@ if prompt := st.chat_input("最新の価格やニュースなど、何でも質�
 {search_context}
 """
 
-      # 検索結果と指示をユーザーの質問文と合体させる
+     # 検索結果と指示をユーザーの質問文と合体させる
         final_user_prompt = f"""以下の【Web検索結果】を参照して、質問に日本語で分かりやすく回答してください。
 
 【Web検索結果】:
@@ -70,17 +70,36 @@ if prompt := st.chat_input("最新の価格やニュースなど、何でも質�
 【質問】:
 {prompt}"""
 
-        # 過去履歴（直前の質問以外）を取得
+        # 過去履歴を取得
         messages_to_send = [
             {"role": m["role"], "content": m["content"]}
             for m in st.session_state.messages[:-1]
         ]
-        # 検索結果入りの最新userメッセージを追加
         messages_to_send.append({"role": "user", "content": final_user_prompt})
+
+        # --- 現在利用可能なモデルをGroqから自動取得 ---
+        available_models = [m.id for m in client.models.list().data]
+        
+        # 優先順位リスト（利用可能なものから最初に見つかったものを採用）
+        candidate_models = [
+            "llama-3.3-70b-versatile",
+            "meta-llama/llama-3.3-70b-instruct",
+            "meta-llama/llama-3.1-8b-instruct",
+            "llama3-70b-8192",
+            "llama3-8b-8192"
+        ]
+        
+        # 候補に合致するものを探す（無ければ現在動いている最初のチャットモデルを採用）
+        selected_model = next((m for m in candidate_models if m in available_models), available_models[0])
+        
+        # どのモデルが選ばれたかを画面の折りたたみメニューで確認できるように表示
+        with st.expander("ℹ️ 使用中のAIモデル情報"):
+            st.write(f"選択されたモデル: `{selected_model}`")
+            st.write("現在利用可能なモデル一覧:", available_models)
 
         # Groq API呼び出し
         completion = client.chat.completions.create(
-            model="llama-3.1-8b-instant",
+            model=selected_model,
             messages=messages_to_send,
         )
 
