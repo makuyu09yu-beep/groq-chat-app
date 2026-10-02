@@ -62,19 +62,28 @@ if prompt := st.chat_input("最新の価格やニュースなど、何でも質�
 """
 
     # 検索結果と指示をユーザーの質問文と合体させる（エラー防止の安全な書き方）
-   # 🚨 追加対策: Web検索結果が長すぎてエラーになるのを防ぐため、2000文字でカットする
-        safe_search = str(search_context)[:2000] if search_context else ""
+ # 🚨 文字数オーバー対策①: 今回の検索結果を1500文字で安全にカット
+        safe_search = str(search_context)[:1500] if search_context else ""
         
         final_user_prompt = "以下の[Web検索結果]を参照して、質問に日本語で分かりやすく回答してください。\n\n[Web検索結果]:\n" + safe_search + "\n\n[質問]:\n" + str(prompt)
 
-        # バグった履歴を完全修復するフィルター
+        # 🚨 文字数オーバー対策②: 過去の履歴が雪だるま式に増えるのを防ぐ最強フィルター
         safe_history = []
-        for m in st.session_state.messages[:-1]:
+        # 全履歴を送るのをやめ、直近4件（2往復分）だけを取り出す
+        recent_messages = st.session_state.messages[:-1][-4:]
+        
+        for m in recent_messages:
             if len(safe_history) == 0 and m["role"] != "user":
                 continue
             if len(safe_history) > 0 and safe_history[-1]["role"] == m["role"]:
                 continue
-            safe_history.append({"role": m["role"], "content": m["content"]})
+                
+            # 過去の会話に混ざっている古い検索結果を500文字でバッサリ切る（記憶容量の節約）
+            safe_content = str(m["content"])
+            if len(safe_content) > 500:
+                safe_content = safe_content[:500] + "\n...(以前の検索結果は省略)..."
+                
+            safe_history.append({"role": m["role"], "content": safe_content})
             
         if len(safe_history) > 0 and safe_history[-1]["role"] == "user":
             safe_history.pop()
@@ -96,14 +105,13 @@ if prompt := st.chat_input("最新の価格やニュースなど、何でも質�
         with st.expander("ℹ️ 使用中のAIモデル情報"):
             st.write(f"選択されたモデル: `{selected_model}`")
 
-        # 🚨 エラーの「本当の理由」を画面に表示するためのブロック
         try:
             completion = client.chat.completions.create(
                 model=selected_model,
                 messages=messages_to_send,
             )
         except Exception as e:
-            st.error(f"🚨 Groqエラーの本当の原因: {e}")
+            st.error(f"🚨 Groqエラー: {e}")
             st.stop()
         
         response_text = completion.choices[0].message.content
