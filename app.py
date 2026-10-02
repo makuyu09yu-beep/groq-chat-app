@@ -61,7 +61,7 @@ if prompt := st.chat_input("最新の価格やニュースなど、何でも質�
 {search_context}
 """
 
-     # 検索結果と指示をユーザーの質問文と合体させる
+    # 検索結果と指示をユーザーの質問文と合体させる
         final_user_prompt = f"""以下の【Web検索結果】を参照して、質問に日本語で分かりやすく回答してください。
 
 【Web検索結果】:
@@ -70,32 +70,39 @@ if prompt := st.chat_input("最新の価格やニュースなど、何でも質�
 【質問】:
 {prompt}"""
 
-        # 過去履歴を取得
-        messages_to_send = [
+        # 過去履歴を取得（直前の質問以外）
+        raw_history = [
             {"role": m["role"], "content": m["content"]}
             for m in st.session_state.messages[:-1]
         ]
-        messages_to_send.append({"role": "user", "content": final_user_prompt})
+        
+        # 🚨 400エラー対策①: 会話の最初が「assistant」だとエラーになるため、先頭のassistantの挨拶を除外する
+        while len(raw_history) > 0 and raw_history[0]["role"] == "assistant":
+            raw_history.pop(0)
+
+        # 送信用メッセージリストを組み立て
+        messages_to_send = raw_history + [{"role": "user", "content": final_user_prompt}]
 
         # --- 現在利用可能なモデルをGroqから自動取得 ---
         available_models = [m.id for m in client.models.list().data]
         
-        # 優先順位リスト（利用可能なものから最初に見つかったものを採用）
+        # 🚨 400エラー対策②: 音声モデル(whisper)を除外し、チャット用モデルだけを抽出
+        text_models = [m for m in available_models if "whisper" not in m.lower()]
+        
+        # 優先順位リスト（Groqで昔からずっと安定している「mixtral」を追加）
         candidate_models = [
             "llama-3.3-70b-versatile",
-            "meta-llama/llama-3.3-70b-instruct",
-            "meta-llama/llama-3.1-8b-instruct",
-            "llama3-70b-8192",
-            "llama3-8b-8192"
+            "mixtral-8x7b-32768",
+            "gemma2-9b-it",
+            "deepseek-r1-distill-llama-70b"
         ]
         
-        # 候補に合致するものを探す（無ければ現在動いている最初のチャットモデルを採用）
-        selected_model = next((m for m in candidate_models if m in available_models), available_models[0])
+        # 候補に合致するものを探す（無ければテキストモデルの1番目を強制選択）
+        selected_model = next((m for m in candidate_models if m in text_models), text_models[0] if text_models else available_models[0])
         
-        # どのモデルが選ばれたかを画面の折りたたみメニューで確認できるように表示
+        # どのモデルが選ばれたか画面に表示
         with st.expander("ℹ️ 使用中のAIモデル情報"):
             st.write(f"選択されたモデル: `{selected_model}`")
-            st.write("現在利用可能なモデル一覧:", available_models)
 
         # Groq API呼び出し
         completion = client.chat.completions.create(
