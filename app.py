@@ -80,7 +80,7 @@ if prompt := st.chat_input("最新の価格やニュースなど、何でも質�
 
         # Groq API呼び出し
         completion = client.chat.completions.create(
-            model="gemma2-9b-it",
+            model="llama-3.1-8b-instant",
             messages=messages_to_send,
         )
 
