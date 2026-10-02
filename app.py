@@ -61,17 +61,8 @@ if prompt := st.chat_input("最新の価格やニュースなど、何でも質�
 {search_context}
 """
 
-    # 検索結果と指示をユーザーの質問文と合体させる
-        final_user_prompt = f"""以下の【Web検索結果】を参照して、質問に日本語で分かりやすく回答してください。
-
-# 検索結果と指示をユーザーの質問文と合体させる
-        final_user_prompt = f"""以下の【Web検索結果】を参照して、質問に日本語で分かりやすく回答してください。
-
-【Web検索結果】:
-{search_context}
-
-【質問】:
-{prompt}"""
+    # 検索結果と指示をユーザーの質問文と合体させる（エラー防止の安全な書き方）
+        final_user_prompt = "以下の[Web検索結果]を参照して、質問に日本語で分かりやすく回答してください。\n\n[Web検索結果]:\n" + str(search_context) + "\n\n[質問]:\n" + str(prompt)
 
         # 🚨 400エラーの最終原因「バグった履歴」を完全修復するフィルター
         safe_history = []
