@@ -61,14 +61,24 @@ if prompt := st.chat_input("最新の価格やニュースなど、何でも質�
 {search_context}
 """
 
-        # Groqへ送信するメッセージの組み立て
-        messages_to_send = [
-            {"role": "system", "content": system_instruction}
-        ] + [
-            {"role": m["role"], "content": m["content"]} for m in st.session_state.messages
-        ]
+      # 検索結果と指示をユーザーの質問文と合体させる
+        final_user_prompt = f"""以下の【Web検索結果】を参照して、質問に日本語で分かりやすく回答してください。
 
-        # Groq API呼び出し（最新の推奨モデルを使用）
+【Web検索結果】:
+{search_context}
+
+【質問】:
+{prompt}"""
+
+        # 過去履歴（直前の質問以外）を取得
+        messages_to_send = [
+            {"role": m["role"], "content": m["content"]}
+            for m in st.session_state.messages[:-1]
+        ]
+        # 検索結果入りの最新userメッセージを追加
+        messages_to_send.append({"role": "user", "content": final_user_prompt})
+
+        # Groq API呼び出し
         completion = client.chat.completions.create(
             model="gemma2-9b-it",
             messages=messages_to_send,
