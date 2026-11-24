@@ -50,12 +50,12 @@ if prompt := st.chat_input("質問を入力してください..."):
         # --- Groq AI 呼び出し処理 ---
         with st.spinner("🤖 AIが考え中..."):
             
-            # パンク対策①: 検索結果を1000文字に制限
+            # 検索結果を1000文字に制限
             safe_search = str(search_context)[:1000] if search_context else ""
             
-            final_user_prompt = "以下の[Web検索結果]を参照して、質問に日本語で分かりやすく回答してください。\n\n[Web検索結果]:\n" + safe_search + "\n\n[質問]:\n" + str(prompt)
+            final_user_prompt = "以下の[Web検索結果]を参照して、質問に日本語で分かりやすく最後まで回答してください。\n\n[Web検索結果]:\n" + safe_search + "\n\n[質問]:\n" + str(prompt)
 
-            # パンク対策②: 過去の履歴を直近2件（1往復）に絞る
+            # 過去の履歴を直近2件（1往復）に絞る
             safe_history = []
             recent_messages = st.session_state.messages[:-1][-2:]
             
@@ -76,7 +76,7 @@ if prompt := st.chat_input("質問を入力してください..."):
 
             messages_to_send = safe_history + [{"role": "user", "content": final_user_prompt}]
 
-            # パンク対策③: 音声用・検閲用(guard)・規約同意系モデルを除外してチャットモデルを自動選択
+            # 音声用・検閲用(guard)・規約同意系モデルを除外してチャットモデルを自動選択
             available_models = [m.id for m in client.models.list().data]
             ng_words = ["whisper", "canopy", "orpheus", "guard", "tts", "playai", "vision"]
             text_models = [
@@ -99,13 +99,23 @@ if prompt := st.chat_input("質問を入力してください..."):
             with st.expander("ℹ️ 使用中のAIモデル情報"):
                 st.write("選択されたモデル: " + str(selected_model))
 
-            # パンク対策④: max_tokensを512に設定して上限エラーを完全回避
+            # 基本は2048トークンで最後まで回答させ、上限エラー時のみ512で自動再試行
             try:
-                completion = client.chat.completions.create(
-                    model=selected_model,
-                    messages=messages_to_send,
-                    max_tokens=512,
-                )
+                try:
+                    completion = client.chat.completions.create(
+                        model=selected_model,
+                        messages=messages_to_send,
+                        max_tokens=2048,
+                    )
+                except Exception as inner_e:
+                    if "max_tokens" in str(inner_e):
+                        completion = client.chat.completions.create(
+                            model=selected_model,
+                            messages=messages_to_send,
+                            max_tokens=512,
+                        )
+                    else:
+                        raise inner_e
                 
                 full_response = completion.choices[0].message.content
                 message_placeholder.markdown(full_response)
